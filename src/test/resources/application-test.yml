@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    # On utilise le driver H2 pour les tests, pas besoin de configurer une vraie base de données
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+    defer-datasource-initialization: true
+  
+  kafka:
+    listener:
+    # desactive le démarrage automatique des listeners Kafka pendant les tests pour éviter les erreurs de connexion
+      auto-startup: false

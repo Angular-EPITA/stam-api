@@ -1,0 +1,63 @@
+name: Backend CI Pipeline
+
+on:
+  push: 
+    # Déclenchement sur toutes les branches à chaque push
+  pull_request:
+    branches: [ "main", "develop" ]
+
+jobs:
+  ci-stam-api:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      
+    steps:
+    - name: Checkout du code source
+      uses: actions/checkout@v4
+
+    - name: Configuration de Java 21 (Temurin)
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: maven
+
+    - name: Compilation et Tests Unitaires
+      run: mvn clean verify
+
+    - name: Sauvegarde de l'artefact (Fichier JAR)
+      uses: actions/upload-artifact@v4
+      if: success()
+      with:
+        name: stam-api-executable
+        path: target/*.jar
+        retention-days: 7
+
+    - name: Sauvegarde du rapport de couverture (JaCoCo)
+      uses: actions/upload-artifact@v4
+      if: always() # Le "always()" permet d'avoir le rapport même si un test échoue !
+      with:
+        name: coverage-report
+        path: target/site/jacoco/
+        retention-days: 7
+
+    - name: Login to GitHub Container Registry (GHCR)
+      uses: docker/login-action@v3
+      # On ne pousse l'image que si on est sur main ou develop
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+      with:
+        context: .
+        push: true
+        tags: |
+          ghcr.io/angular-epita/stam-api:latest
+          ghcr.io/angular-epita/stam-api:${{ github.sha }}
