@@ -59,5 +59,5 @@ jobs:
         context: .
         push: true
         tags: |
-          ghcr.io/${{ github.repository }}:latest
-          ghcr.io/${{ github.repository }}:${{ github.sha }}
+          ghcr.io/angular-epita/stam-api:latest
+          ghcr.io/angular-epita/stam-api:${{ github.sha }}
