@@ -7,6 +7,10 @@ spring:
     password:
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+    defer-datasource-initialization: true
+  
   kafka:
     listener:
     # desactive le démarrage automatique des listeners Kafka pendant les tests pour éviter les erreurs de connexion
