@@ -1,0 +1,97 @@
+package com.stam.api.controller;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.stam.api.dto.GameRequestDTO;
+import com.jayway.jsonpath.JsonPath;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+import java.time.LocalDate;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@Testcontainers
+@SpringBootTest(properties = {
+    "spring.jpa.hibernate.ddl-auto=create-drop",
+    "spring.sql.init.mode=always",
+    "spring.kafka.listener.auto-startup=false"
+})
+class GameControllerCrudTest {
+
+    @Container
+    @ServiceConnection
+    static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+
+    @Autowired
+    WebApplicationContext webApplicationContext;
+
+    @Test
+    void crud_create_get_update_delete() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
+        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+
+        GameRequestDTO createDto = new GameRequestDTO();
+        String createTitle = "IT Game " + UUID.randomUUID();
+        createDto.setTitle(createTitle);
+        createDto.setDescription("integration test");
+        createDto.setReleaseDate(LocalDate.of(2024, 1, 1));
+        createDto.setPrice(19.99f);
+        createDto.setImageUrl("https://example.com/game.png");
+        createDto.setGenreId(1L);
+
+        String createBody = mockMvc.perform(post("/api/games")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(createDto)))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.id").isNotEmpty())
+            .andExpect(jsonPath("$.title").value(createTitle))
+            .andExpect(jsonPath("$.genre.id").value(1))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        String createdId = JsonPath.read(createBody, "$.id");
+        assertThat(createdId).isNotBlank();
+
+        mockMvc.perform(get("/api/games/{id}", createdId))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(createdId));
+
+        GameRequestDTO updateDto = new GameRequestDTO();
+        updateDto.setTitle(createDto.getTitle() + " updated");
+        updateDto.setDescription("updated desc");
+        updateDto.setReleaseDate(LocalDate.of(2024, 2, 2));
+        updateDto.setPrice(29.99f);
+        updateDto.setImageUrl("https://example.com/game2.png");
+        updateDto.setGenreId(2L);
+
+        mockMvc.perform(put("/api/games/{id}", createdId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(updateDto)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.title").value(updateDto.getTitle()))
+            .andExpect(jsonPath("$.genre.id").value(2));
+
+        mockMvc.perform(delete("/api/games/{id}", createdId))
+            .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/games/{id}", createdId))
+            .andExpect(status().isNotFound());
+    }
+}
