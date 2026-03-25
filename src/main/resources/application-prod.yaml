@@ -8,7 +8,7 @@ spring:
     init:
       mode: always
       continue-on-error: false
-      classpath: data.sql
+      data-locations: classpath:data.sql
   jpa:
     show-sql: false
     properties:

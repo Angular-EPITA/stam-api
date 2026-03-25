@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
@@ -27,10 +28,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @Testcontainers
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SpringBootTest(properties = {
     "spring.jpa.hibernate.ddl-auto=create-drop",
+    "spring.jpa.show-sql=false",
     "spring.sql.init.mode=always",
-    "spring.kafka.listener.auto-startup=false"
+    "spring.kafka.listener.auto-startup=false",
+    "logging.level.org.apache.kafka=WARN",
+    "logging.level.kafka=WARN",
+    "logging.level.org.testcontainers=WARN",
+    "logging.level.com.github.dockerjava=WARN",
+    "logging.level.org.hibernate.SQL=WARN"
 })
 class GameControllerCrudTest {
 

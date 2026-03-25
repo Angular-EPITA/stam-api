@@ -9,7 +9,7 @@ spring:
     init:
       mode: always
       continue-on-error: false
-      classpath: data-test.sql
+      data-locations: classpath:data-test.sql
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
     properties:

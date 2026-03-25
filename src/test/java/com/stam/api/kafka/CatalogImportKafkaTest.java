@@ -14,13 +14,18 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.awaitility.Awaitility;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.MediaType;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
+import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
@@ -39,6 +44,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -46,11 +52,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @Testcontainers
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SpringBootTest(properties = {
     "spring.jpa.hibernate.ddl-auto=create-drop",
+    "spring.jpa.show-sql=false",
     "spring.sql.init.mode=always",
     "spring.kafka.listener.auto-startup=true",
-    "spring.kafka.consumer.auto-offset-reset=earliest"
+    "spring.kafka.consumer.auto-offset-reset=earliest",
+    "spring.kafka.listener.shutdown-timeout=0",
+    "logging.level.org.apache.kafka=WARN",
+    "logging.level.kafka=WARN",
+    "logging.level.org.testcontainers=WARN",
+    "logging.level.com.github.dockerjava=WARN",
+    "logging.level.org.hibernate.SQL=WARN"
 })
 class CatalogImportKafkaTest {
 
@@ -62,11 +77,14 @@ class CatalogImportKafkaTest {
     @ServiceConnection
     static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
 
-    @Container
     static final KafkaContainer kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.6.1"));
 
     @DynamicPropertySource
     static void registerKafkaProperties(DynamicPropertyRegistry registry) {
+        if (!kafka.isRunning()) {
+            kafka.start();
+        }
+
         registry.add("spring.kafka.bootstrap-servers", kafka::getBootstrapServers);
         registry.add("spring.kafka.consumer.group-id", () -> GROUP_ID);
         registry.add("stam.kafka.catalog-import-topic", () -> TOPIC);
@@ -77,6 +95,27 @@ class CatalogImportKafkaTest {
 
     @Autowired
     GameRepository gameRepository;
+
+    @Autowired(required = false)
+    KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
+
+    @AfterAll
+    void stopKafkaListeners() throws InterruptedException {
+        if (kafkaListenerEndpointRegistry != null) {
+            for (MessageListenerContainer container : kafkaListenerEndpointRegistry.getListenerContainers()) {
+                if (!container.isRunning()) {
+                    continue;
+                }
+                CountDownLatch latch = new CountDownLatch(1);
+                container.stop(latch::countDown);
+                latch.await(5, TimeUnit.SECONDS);
+            }
+        }
+
+        if (kafka.isRunning()) {
+            kafka.stop();
+        }
+    }
 
     @Test
     void importAsync_publishesToKafka_andConsumerInsertsInDb() throws Exception {
