@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>com.stam</groupId>
 	<artifactId>stam-api</artifactId>
-	<version>0.0.96</version>
+	<version>0.0.97</version>
 	<name>stam-api</name>
 	<description>stam-api project</description>
 	<url/>
