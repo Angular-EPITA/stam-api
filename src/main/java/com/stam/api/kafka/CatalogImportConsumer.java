@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stam.api.dto.GameRequestDTO;
 import com.stam.api.kafka.dto.PartnerCatalogImportMessage;
-import com.stam.api.service.GameService;
+import com.stam.api.service.GameServicePort;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,9 +24,8 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class CatalogImportConsumer {
 
-    private final GameService gameService;
-
-    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+    private final GameServicePort gameService;
+    private final ObjectMapper objectMapper;
     private final Validator validator;
 
     @KafkaListener(

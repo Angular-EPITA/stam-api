@@ -1,3 +1,6 @@
+-- Utilisateurs par défaut (seul le rôle ADMIN existe)
+INSERT INTO users (id, username, password, role) VALUES (1, 'admin', '$2b$12$AhSVJu8UBUBD6qTugU/ixuTG1PN9TN9wlUzRXEL7yDe.KWaeTGvNS', 'ADMIN') ON CONFLICT (id) DO NOTHING;
+
 -- Ajout de nouveaux genres pour plus de variété
 INSERT INTO genres (id, name) VALUES (1, 'RPG') ON CONFLICT (id) DO NOTHING;
 INSERT INTO genres (id, name) VALUES (2, 'Action') ON CONFLICT (id) DO NOTHING;

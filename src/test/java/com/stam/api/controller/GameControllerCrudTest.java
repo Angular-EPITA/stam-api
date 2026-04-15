@@ -2,12 +2,16 @@ package com.stam.api.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stam.api.dto.GameRequestDTO;
+import com.stam.api.security.JwtService;
 import com.jayway.jsonpath.JsonPath;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -20,6 +24,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -49,9 +54,51 @@ class GameControllerCrudTest {
     @Autowired
     WebApplicationContext webApplicationContext;
 
+    @Autowired
+    JwtService jwtService;
+
+    @Autowired
+    UserDetailsService userDetailsService;
+
+    MockMvc mockMvc;
+    String adminToken;
+
+    @BeforeEach
+    void setup() {
+        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
+                .apply(springSecurity())
+                .build();
+
+        UserDetails admin = userDetailsService.loadUserByUsername("admin");
+        adminToken = jwtService.generateAccessToken(admin);
+    }
+
+    @Test
+    void publicEndpoint_games_returns200WithoutAuth() throws Exception {
+        mockMvc.perform(get("/api/games?page=0&size=5"))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    void protectedEndpoint_returns401WithoutAuth() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+
+        GameRequestDTO createDto = new GameRequestDTO();
+        createDto.setTitle("Unauthorized Game");
+        createDto.setDescription("should fail");
+        createDto.setReleaseDate(LocalDate.of(2024, 1, 1));
+        createDto.setPrice(9.99f);
+        createDto.setImageUrl("https://example.com/game.png");
+        createDto.setGenreId(1L);
+
+        mockMvc.perform(post("/api/games")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(createDto)))
+            .andExpect(status().isForbidden());
+    }
+
     @Test
     void crud_create_get_update_delete() throws Exception {
-        MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
         GameRequestDTO createDto = new GameRequestDTO();
@@ -64,6 +111,7 @@ class GameControllerCrudTest {
         createDto.setGenreId(1L);
 
         String createBody = mockMvc.perform(post("/api/games")
+                .header("Authorization", "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(createDto)))
             .andExpect(status().isCreated())
@@ -90,13 +138,15 @@ class GameControllerCrudTest {
         updateDto.setGenreId(2L);
 
         mockMvc.perform(put("/api/games/{id}", createdId)
+                .header("Authorization", "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(updateDto)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.title").value(updateDto.getTitle()))
             .andExpect(jsonPath("$.genre.id").value(2));
 
-        mockMvc.perform(delete("/api/games/{id}", createdId))
+        mockMvc.perform(delete("/api/games/{id}", createdId)
+                .header("Authorization", "Bearer " + adminToken))
             .andExpect(status().isNoContent());
 
         mockMvc.perform(get("/api/games/{id}", createdId))

@@ -127,8 +127,11 @@ Option : JSON valide mais incomplet (validation KO, ex: `title` manquant) :
 ## Tests (preuve automatisée)
 
 ```bash
-./mvnw test
+# Lancer les tests + vérification couverture (seuil 70%)
+./mvnw verify
 ```
+
+Le rapport de couverture JaCoCo est généré dans `target/site/jacoco/index.html`.
 
 Scénarios couverts :
 
