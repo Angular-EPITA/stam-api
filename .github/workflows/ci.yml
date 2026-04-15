@@ -158,6 +158,7 @@ jobs:
           echo "Release : $CURRENT_VERSION → $NEW_VERSION"
           
           mvn versions:set -DnewVersion=$NEW_VERSION -DgenerateBackupPoms=false
+          mvn package -DskipTests
           
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
