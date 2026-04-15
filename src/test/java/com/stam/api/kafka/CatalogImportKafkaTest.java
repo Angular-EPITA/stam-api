@@ -3,6 +3,7 @@ package com.stam.api.kafka;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stam.api.dto.GameRequestDTO;
 import com.stam.api.repository.GameRepository;
+import com.stam.api.security.JwtService;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -15,6 +16,7 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +25,8 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.http.MediaType;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.annotation.DirtiesContext;
@@ -48,6 +52,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -96,8 +101,27 @@ class CatalogImportKafkaTest {
     @Autowired
     GameRepository gameRepository;
 
+    @Autowired
+    JwtService jwtService;
+
+    @Autowired
+    UserDetailsService userDetailsService;
+
     @Autowired(required = false)
     KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
+
+    MockMvc mockMvc;
+    String adminToken;
+
+    @BeforeEach
+    void setup() {
+        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
+                .apply(springSecurity())
+                .build();
+
+        UserDetails admin = userDetailsService.loadUserByUsername("admin");
+        adminToken = jwtService.generateAccessToken(admin);
+    }
 
     @AfterAll
     void stopKafkaListeners() throws InterruptedException {
@@ -119,7 +143,6 @@ class CatalogImportKafkaTest {
 
     @Test
     void importAsync_publishesToKafka_andConsumerInsertsInDb() throws Exception {
-        MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
         ensureTopicExists();
@@ -138,6 +161,7 @@ class CatalogImportKafkaTest {
         String partnerId = "partner-it";
 
         mockMvc.perform(post("/api/partners/" + partnerId + "/catalog/import-async")
+                .header("Authorization", "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(List.of(dto))))
             .andExpect(status().isAccepted())

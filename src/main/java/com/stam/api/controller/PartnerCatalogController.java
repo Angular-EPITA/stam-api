@@ -5,6 +5,7 @@ import com.stam.api.kafka.CatalogImportProducer;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,14 +17,11 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/partners")
+@RequiredArgsConstructor
 @Tag(name = "Partenaires", description = "Endpoints pour l'alimentation du catalogue par partenaires externes")
 public class PartnerCatalogController {
 
     private final CatalogImportProducer catalogImportProducer;
-
-    public PartnerCatalogController(CatalogImportProducer catalogImportProducer) {
-        this.catalogImportProducer = catalogImportProducer;
-    }
 
     @Operation(
             summary = "Importer un lot de jeux (Partenaire, Asynchrone)",

@@ -25,7 +25,7 @@ import java.util.UUID;
 public class CatalogImportProducer {
 
     private final KafkaTemplate<String, String> kafkaTemplate;
-    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+    private final ObjectMapper objectMapper;
 
     @Value("${stam.kafka.catalog-import-topic:partner.catalog.import}")
     private String topic;
