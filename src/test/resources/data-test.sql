@@ -15,3 +15,6 @@ VALUES (
   'https://example.com/seed-test-game.png',
   1
 );
+
+-- Test user (password = 'admin' hashed with bcrypt)
+INSERT INTO users (id, username, password, role) VALUES (1, 'admin', '$2b$12$AhSVJu8UBUBD6qTugU/ixuTG1PN9TN9wlUzRXEL7yDe.KWaeTGvNS', 'ADMIN');

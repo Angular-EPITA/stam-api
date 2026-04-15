@@ -1,8 +1,10 @@
 package com.stam.api.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.stam.api.AbstractIntegrationTest;
 import com.stam.api.dto.GameRequestDTO;
 import com.stam.api.repository.GameRepository;
+import com.stam.api.security.JwtService;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -15,25 +17,22 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.MediaType;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
-import org.testcontainers.containers.KafkaContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
 
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -48,10 +47,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@Testcontainers
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SpringBootTest(properties = {
@@ -67,25 +66,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "logging.level.com.github.dockerjava=WARN",
     "logging.level.org.hibernate.SQL=WARN"
 })
-class CatalogImportKafkaTest {
+class CatalogImportKafkaTest extends AbstractIntegrationTest {
 
     static final String TOPIC = "stam.catalog.import.it";
     static final String DLT_TOPIC = TOPIC + ".dlt";
     static final String GROUP_ID = "stam-it";
 
-    @Container
-    @ServiceConnection
-    static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
-
-    static final KafkaContainer kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.6.1"));
-
     @DynamicPropertySource
-    static void registerKafkaProperties(DynamicPropertyRegistry registry) {
-        if (!kafka.isRunning()) {
-            kafka.start();
-        }
-
-        registry.add("spring.kafka.bootstrap-servers", kafka::getBootstrapServers);
+    static void registerKafkaTopics(DynamicPropertyRegistry registry) {
         registry.add("spring.kafka.consumer.group-id", () -> GROUP_ID);
         registry.add("stam.kafka.catalog-import-topic", () -> TOPIC);
     }
@@ -96,8 +84,27 @@ class CatalogImportKafkaTest {
     @Autowired
     GameRepository gameRepository;
 
+    @Autowired
+    JwtService jwtService;
+
+    @Autowired
+    UserDetailsService userDetailsService;
+
     @Autowired(required = false)
     KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
+
+    MockMvc mockMvc;
+    String adminToken;
+
+    @BeforeEach
+    void setup() {
+        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
+                .apply(springSecurity())
+                .build();
+
+        UserDetails admin = userDetailsService.loadUserByUsername("admin");
+        adminToken = jwtService.generateAccessToken(admin);
+    }
 
     @AfterAll
     void stopKafkaListeners() throws InterruptedException {
@@ -111,15 +118,10 @@ class CatalogImportKafkaTest {
                 latch.await(5, TimeUnit.SECONDS);
             }
         }
-
-        if (kafka.isRunning()) {
-            kafka.stop();
-        }
     }
 
     @Test
     void importAsync_publishesToKafka_andConsumerInsertsInDb() throws Exception {
-        MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
         ensureTopicExists();
@@ -138,6 +140,7 @@ class CatalogImportKafkaTest {
         String partnerId = "partner-it";
 
         mockMvc.perform(post("/api/partners/" + partnerId + "/catalog/import-async")
+                .header("Authorization", "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(List.of(dto))))
             .andExpect(status().isAccepted())

@@ -1,0 +1,471 @@
+{
+  "info": {
+    "name": "STAM API - E2E Tests",
+    "_postman_id": "stam-e2e-collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" },
+    { "key": "createdGameId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/health"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Health endpoint returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Status is UP', function () {",
+              "  var json = pm.response.json();",
+              "  pm.expect(json.status).to.eql('UP');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Public - List Games",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/games?page=0&size=5"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('GET /api/games returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Response is paginated', function () {",
+              "  var json = pm.response.json();",
+              "  pm.expect(json).to.have.property('content');",
+              "  pm.expect(json).to.have.property('totalElements');",
+              "  pm.expect(json).to.have.property('totalPages');",
+              "});",
+              "pm.test('Response time < 2s', function () {",
+              "  pm.expect(pm.response.responseTime).to.be.below(2000);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Public - List Genres",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/genres"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('GET /api/genres returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Genres is an array', function () {",
+              "  var json = pm.response.json();",
+              "  pm.expect(json).to.be.an('array');",
+              "  pm.expect(json.length).to.be.above(0);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Public - Latest Games",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/games/latest"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('GET /api/games/latest returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Latest games is array with max 10', function () {",
+              "  var json = pm.response.json();",
+              "  pm.expect(json).to.be.an('array');",
+              "  pm.expect(json.length).to.be.at.most(10);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth - Reject unauthenticated POST",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/games",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"title\":\"Unauthorized\",\"description\":\"test\",\"releaseDate\":\"2024-01-01\",\"price\":9.99,\"imageUrl\":\"https://example.com/img.png\",\"genreId\":1}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('POST without token returns 401 or 403', function () {",
+              "  pm.expect(pm.response.code).to.be.oneOf([401, 403]);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth - Login (extract JWT)",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/auth/login",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"username\":\"admin\",\"password\":\"admin\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Login returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "",
+              "pm.test('Response contains accessToken and refreshToken', function () {",
+              "  pm.expect(json).to.have.property('accessToken');",
+              "  pm.expect(json).to.have.property('refreshToken');",
+              "  pm.expect(json.accessToken).to.be.a('string').and.not.empty;",
+              "  pm.expect(json.refreshToken).to.be.a('string').and.not.empty;",
+              "});",
+              "",
+              "// Decode JWT and validate structure",
+              "pm.test('Access token is a valid JWT with 3 parts', function () {",
+              "  var parts = json.accessToken.split('.');",
+              "  pm.expect(parts.length).to.eql(3);",
+              "",
+              "  // Decode header",
+              "  var header = JSON.parse(atob(parts[0]));",
+              "  pm.expect(header.alg).to.match(/^HS(256|384|512)$/);",
+              "",
+              "  // Decode payload and verify claims",
+              "  var payload = JSON.parse(atob(parts[1]));",
+              "  pm.expect(payload.sub).to.eql('admin');",
+              "  pm.expect(payload).to.have.property('iat');",
+              "  pm.expect(payload).to.have.property('exp');",
+              "  pm.expect(payload.type).to.eql('access');",
+              "",
+              "  // Verify expiration is in the future",
+              "  var now = Math.floor(Date.now() / 1000);",
+              "  pm.expect(payload.exp).to.be.above(now);",
+              "});",
+              "",
+              "pm.test('Refresh token has type=refresh', function () {",
+              "  var parts = json.refreshToken.split('.');",
+              "  var payload = JSON.parse(atob(parts[1]));",
+              "  pm.expect(payload.type).to.eql('refresh');",
+              "  pm.expect(payload.sub).to.eql('admin');",
+              "});",
+              "",
+              "// Store tokens for subsequent requests",
+              "pm.collectionVariables.set('accessToken', json.accessToken);",
+              "pm.collectionVariables.set('refreshToken', json.refreshToken);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth - Login bad credentials",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/auth/login",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"username\":\"admin\",\"password\":\"wrong\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Bad credentials returns 401', function () {",
+              "  pm.expect(pm.response.code).to.be.oneOf([401, 403]);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth - Refresh token",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/auth/refresh",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\":\"{{refreshToken}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Refresh returns 200 with new tokens', function () {",
+              "  pm.response.to.have.status(200);",
+              "  var json = pm.response.json();",
+              "  pm.expect(json.accessToken).to.be.a('string').and.not.empty;",
+              "  pm.expect(json.refreshToken).to.be.a('string').and.not.empty;",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "pm.test('New access token is a valid JWT', function () {",
+              "  var parts = json.accessToken.split('.');",
+              "  pm.expect(parts.length).to.eql(3);",
+              "});",
+              "",
+              "// Update tokens",
+              "pm.collectionVariables.set('accessToken', json.accessToken);",
+              "pm.collectionVariables.set('refreshToken', json.refreshToken);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CRUD - Create Game (authenticated)",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/games",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"title\":\"E2E Test Game\",\"description\":\"Created by Newman E2E\",\"releaseDate\":\"2025-06-15\",\"price\":29.99,\"imageUrl\":\"https://example.com/e2e.png\",\"genreId\":1}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Create game returns 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "var json = pm.response.json();",
+              "pm.test('Created game has correct fields', function () {",
+              "  pm.expect(json.title).to.eql('E2E Test Game');",
+              "  pm.expect(json.price).to.eql(29.99);",
+              "  pm.expect(json.id).to.not.be.undefined;",
+              "});",
+              "pm.collectionVariables.set('createdGameId', json.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CRUD - Get created game",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/games/{{createdGameId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Get game by ID returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Game matches created data', function () {",
+              "  var json = pm.response.json();",
+              "  pm.expect(json.title).to.eql('E2E Test Game');",
+              "  pm.expect(json.id).to.eql(pm.collectionVariables.get('createdGameId'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CRUD - Update Game (authenticated)",
+      "request": {
+        "method": "PUT",
+        "url": "{{baseUrl}}/api/games/{{createdGameId}}",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"title\":\"E2E Test Game Updated\",\"description\":\"Updated by Newman\",\"releaseDate\":\"2025-07-01\",\"price\":39.99,\"imageUrl\":\"https://example.com/e2e-updated.png\",\"genreId\":2}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Update game returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Game title is updated', function () {",
+              "  var json = pm.response.json();",
+              "  pm.expect(json.title).to.eql('E2E Test Game Updated');",
+              "  pm.expect(json.price).to.eql(39.99);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CRUD - Delete Game (authenticated)",
+      "request": {
+        "method": "DELETE",
+        "url": "{{baseUrl}}/api/games/{{createdGameId}}",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+        ]
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Delete returns 204', function () {",
+              "  pm.response.to.have.status(204);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CRUD - Verify game deleted",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/games/{{createdGameId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Deleted game returns 404', function () {",
+              "  pm.response.to.have.status(404);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Filters - Search by genre",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/games?genreId=1&page=0&size=5"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Filter by genre returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('All results match genre filter', function () {",
+              "  var json = pm.response.json();",
+              "  json.content.forEach(function(game) {",
+              "    pm.expect(game.genre.id).to.eql(1);",
+              "  });",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Filters - Search by text",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/games?search=seed&page=0&size=5"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Search by text returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Swagger - OpenAPI docs accessible",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/v3/api-docs"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('OpenAPI docs returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Contains API info', function () {",
+              "  var json = pm.response.json();",
+              "  pm.expect(json).to.have.property('openapi');",
+              "  pm.expect(json).to.have.property('paths');",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
