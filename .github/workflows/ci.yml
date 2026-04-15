@@ -93,15 +93,17 @@ jobs:
         run: mvn clean package -DskipTests
 
       # --- E2E TESTS (Newman) ---
-      - name: Start API for E2E tests
+      - name: Start infra + API for E2E tests
         run: |
           docker compose -f docker-compose.yml up -d
-          for i in $(seq 1 30); do
+          sleep 5
+          java -jar target/stam-api-*.jar &
+          for i in $(seq 1 60); do
             if curl -sf http://localhost:8080/health > /dev/null 2>&1; then
               echo "API is ready"
               break
             fi
-            echo "Waiting for API... ($i/30)"
+            echo "Waiting for API... ($i/60)"
             sleep 2
           done
 
