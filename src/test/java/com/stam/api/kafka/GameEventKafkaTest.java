@@ -1,7 +1,6 @@
 package com.stam.api.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.stam.api.AbstractIntegrationTest;
 import com.stam.api.dto.GameRequestDTO;
 import com.stam.api.kafka.dto.GameEventMessage;
 import com.stam.api.repository.GameRepository;
@@ -16,11 +15,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
+import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
@@ -37,8 +38,10 @@ import static org.springframework.security.test.web.servlet.setup.SecurityMockMv
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@ActiveProfiles("test")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@EmbeddedKafka(partitions = 1) // On laisse Spring choisir un port disponible !
 @SpringBootTest(properties = {
     "spring.jpa.hibernate.ddl-auto=create-drop",
     "spring.jpa.show-sql=false",
@@ -47,12 +50,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "spring.kafka.consumer.auto-offset-reset=earliest",
     "spring.kafka.listener.shutdown-timeout=0",
     "logging.level.org.apache.kafka=WARN",
-    "logging.level.kafka=WARN",
-    "logging.level.org.testcontainers=WARN",
-    "logging.level.com.github.dockerjava=WARN",
-    "logging.level.org.hibernate.SQL=WARN"
+    "logging.level.kafka=WARN"
 })
-class GameEventKafkaTest extends AbstractIntegrationTest {
+class GameEventKafkaTest {
 
     static final String GAME_EVENTS_TOPIC = "game.events.it";
 
