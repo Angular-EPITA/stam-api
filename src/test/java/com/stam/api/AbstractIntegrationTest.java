@@ -1,30 +1,20 @@
 package com.stam.api;
 
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.KafkaContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.kafka.core.KafkaAdmin;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
-/**
- * Shared Testcontainers (singleton pattern) to avoid restarting containers per test class.
- */
+@SpringBootTest
+@ActiveProfiles("test")
 public abstract class AbstractIntegrationTest {
 
-    protected static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+    // On simule (mock) Kafka pour que les tests normaux 
+    // ne cherchent pas à se connecter à un vrai serveur !
+    @MockitoBean
+    protected KafkaTemplate<String, String> kafkaTemplate;
 
-    protected static final KafkaContainer kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.6.1"));
-
-    static {
-        postgres.start();
-        kafka.start();
-    }
-
-    @DynamicPropertySource
-    static void registerProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("spring.kafka.bootstrap-servers", kafka::getBootstrapServers);
-    }
+    @MockitoBean
+    protected KafkaAdmin kafkaAdmin;
 }

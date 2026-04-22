@@ -25,7 +25,8 @@ public class GameEventProducer {
     @Value("${stam.kafka.game-events-topic:game.events}")
     private String topic;
 
-    public void publish(String eventType, UUID gameId, String gameTitle) {
+    public void sendEvent(String eventType, UUID gameId, String gameTitle) {
+        
         GameEventMessage message = GameEventMessage.builder()
                 .schemaVersion(1)
                 .eventId(UUID.randomUUID())

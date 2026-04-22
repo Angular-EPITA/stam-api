@@ -55,7 +55,7 @@ class GameServiceTest {
 
         assertThat(result.getTitle()).isEqualTo("Test Game");
         verify(gameRepository).save(any(Game.class));
-        verify(gameEventProducer).publish(eq("CREATED"), eq(saved.getId()), eq("Test Game"));
+        verify(gameEventProducer).sendEvent(eq("CREATED"), eq(saved.getId()), eq("Test Game"));
     }
 
     @Test
@@ -93,7 +93,7 @@ class GameServiceTest {
         Game result = gameService.updateGame(id, dto);
 
         assertThat(result.getTitle()).isEqualTo("Updated");
-        verify(gameEventProducer).publish(eq("UPDATED"), eq(id), eq("Updated"));
+        verify(gameEventProducer).sendEvent(eq("UPDATED"), eq(id), eq("Updated"));
     }
 
     @Test
